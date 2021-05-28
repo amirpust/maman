@@ -38,16 +38,16 @@ def createTables():
                               CHECK(RamSize > 0));\
                          CREATE TABLE QueriesOnDisks\
                              (QueryID INTEGER REFERENCES Queries,\
-                              DiskID INTEGER REFERENCES Disks,\
-                              Cost INTEGER \
+                              DiskID INTEGER REFERENCES Disks\
                               ON DELETE CASCADE,\
+                              Cost INTEGER, \
                               PRIMARY KEY(QueryID, DiskID),\
                               CHECK(Cost >= 0));\
                          CREATE TABLE RamsOnDisks\
                              (RamID INTEGER REFERENCES Rams,\
-                              DiskID INTEGER REFERENCES Disks,\
-                              RamSize INTEGER\
+                              DiskID INTEGER REFERENCES Disks\
                               ON DELETE CASCADE,\
+                              RamSize INTEGER,\
                               PRIMARY KEY(RamID, DiskID),\
                               CHECK(RamSize >= 0));\
                     COMMIT;")
@@ -552,17 +552,33 @@ if __name__ == '__main__':
     # print("0. Creating all tables")
     dropTables()
     createTables()
-    disk1 = Disk(1, "ge", 1, 10, 5)
-    # disk2 = Disk(1, 'hey', 2, 3, 4)
-    # disk3 = Disk(-1, 'hey', 2, 3, 4)
+
+    disk1 = Disk(1, "dell", 1, 10, 5)
+    disk2 = Disk(2, 'hp', 2, 3, 4)
+    disk3 = Disk(3, 'apple', 3, 16, 3)
 
     query1 = Query(1, 'hey', 5)
-    query2 = Query(12, 'hey', 5)
-    # query3 = Query(-1, 'hey', 2)
+    query2 = Query(2, 'bye', 5)
+    query3 = Query(3, 'day', 1)
 
+    ram1 = RAM(1, "dell", 5)
+    ram2 = RAM(2, "lenovo", 2)
+    ram3 = RAM(3, "msi", 10)
+
+    print("adding disks 1,2,3 and queries 1,2,3 to DB should be OK")
     print(addDiskAndQuery(disk1, query1))
-    print(getQueryProfile(1))
-    print(getDiskProfile(1))
-    print(addQueryToDisk(query1, 1))
-    print(addQueryToDisk(query2, 1))
-    print(deleteDisk(1))
+    print(addDiskAndQuery(disk2, query2))
+    print(addDiskAndQuery(disk3, query3))
+
+    print("adding rams 1,2,3 to DB should be OK")
+    print(addRAM(ram1))
+    print(addRAM(ram2))
+    print(addRAM(ram3))
+
+    print("adding ")
+
+    # print(getQueryProfile(1))
+    # print(getDiskProfile(1))
+    # print(addQueryToDisk(query1, 1))
+    # print(addQueryToDisk(query2, 1))
+    # print(deleteDisk(1))
