@@ -220,7 +220,8 @@ def deleteDisk(diskID: int) -> ReturnValue:
     conn = None
     try:
         conn = Connector.DBConnector()
-        rows_effected, _ = conn.execute(sql.SQL("DELETE FROM Disks WHERE DiskID = {DiskID}").format(DiskID=sql.Literal(diskID)))
+        rows_effected, _ = conn.execute(
+            sql.SQL("DELETE FROM Disks WHERE DiskID = {DiskID}").format(DiskID=sql.Literal(diskID)))
         conn.commit()
         if rows_effected == 0:
             return ReturnValue.NOT_EXISTS
@@ -374,6 +375,7 @@ def addQueryToDisk(query: Query, diskID: int) -> ReturnValue:
 
     return res
 
+
 # checked should be working
 def removeQueryFromDisk(query: Query, diskID: int) -> ReturnValue:
     conn = None
@@ -395,6 +397,7 @@ def removeQueryFromDisk(query: Query, diskID: int) -> ReturnValue:
         conn.close()
 
     return res
+
 
 # checked should be working
 def addRAMToDisk(ramID: int, diskID: int) -> ReturnValue:
@@ -421,6 +424,7 @@ def addRAMToDisk(ramID: int, diskID: int) -> ReturnValue:
 
     return res
 
+
 # checked should be working
 def removeRAMFromDisk(ramID: int, diskID: int) -> ReturnValue:
     conn = None
@@ -443,12 +447,14 @@ def removeRAMFromDisk(ramID: int, diskID: int) -> ReturnValue:
 
     return res
 
+
 # checked should be working
 def averageSizeQueriesOnDisk(diskID: int) -> float:
     conn = None
     try:
         conn = Connector.DBConnector()
-        query = sql.SQL("SELECT AVG (QuerySize) FROM Queries WHERE QueryID IN (SELECT QueryID FROM QueriesOnDisks WHERE DiskID = {diskID})").format(
+        query = sql.SQL(
+            "SELECT AVG (QuerySize) FROM Queries WHERE QueryID IN (SELECT QueryID FROM QueriesOnDisks WHERE DiskID = {diskID})").format(
             diskID=sql.Literal(diskID))
 
         rows_effected, resultSet = conn.execute(query)
@@ -460,6 +466,7 @@ def averageSizeQueriesOnDisk(diskID: int) -> float:
         conn.close()
 
     return resultSet[0]['avg']
+
 
 # checked should be working
 def diskTotalRAM(diskID: int) -> int:
@@ -478,14 +485,16 @@ def diskTotalRAM(diskID: int) -> int:
     finally:
         conn.close()
 
-    return resultSet[0]['sum'] if resultSet[0]['sum'] is not None else 0 # TODO: check if
+    return resultSet[0]['sum'] if resultSet[0]['sum'] is not None else 0  # TODO: check if
+
 
 # checked should be working
 def getCostForPurpose(purpose: str) -> int:
     conn = None
     try:
         conn = Connector.DBConnector()
-        query = sql.SQL("SELECT SUM(Cost) FROM (SELECT * FROM Queries WHERE QueryPurpose={purpose}) AS derived INNER JOIN QueriesOnDisks ON derived.QueryID = QueriesOnDisks.QueryID").format(
+        query = sql.SQL(
+            "SELECT SUM(Cost) FROM (SELECT * FROM Queries WHERE QueryPurpose={purpose}) AS derived INNER JOIN QueriesOnDisks ON derived.QueryID = QueriesOnDisks.QueryID").format(
             purpose=sql.Literal(purpose))
 
         rows_effected, resultSet = conn.execute(query)
@@ -497,6 +506,7 @@ def getCostForPurpose(purpose: str) -> int:
         conn.close()
 
     return resultSet[0]['sum'] if resultSet[0]['sum'] is not None else 0  # TODO: check how to return the sum
+
 
 # checked should be working
 def getQueriesCanBeAddedToDisk(diskID: int) -> List[int]:
@@ -516,7 +526,7 @@ def getQueriesCanBeAddedToDisk(diskID: int) -> List[int]:
 
     finally:
         conn.close()
-# TODO: how to return the queries
+    # TODO: how to return the queries
     return res
 
 
@@ -527,7 +537,7 @@ def getQueriesCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
         conn = Connector.DBConnector()
         query = sql.SQL(
             "SELECT QueryID FROM Queries WHERE (QuerySize <= (SELECT DiskFreeSpace FROM Disks WHERE DiskId = {diskID})) \
-            OR (QuerySize <= (SELECT SUM(RamSize) FROM RamsOnDisks WHERE DiskID = {diskID})) ORDER BY QueryID DESC LIMIT 5").format(
+            AND (QuerySize <= (SELECT SUM(RamSize) FROM RamsOnDisks WHERE DiskID = {diskID})) ORDER BY QueryID ASC LIMIT 5").format(
             diskID=sql.Literal(diskID))
 
         rows_effected, resultSet = conn.execute(query)
@@ -538,25 +548,26 @@ def getQueriesCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
 
     finally:
         conn.close()
-    # TODO: 1 should also appear
+    # TODO: 1 should also appear - fixed
     return res
 
 
+# checked should be working
 def isCompanyExclusive(diskID: int) -> bool:
     conn = None
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT * FROM Rams WHERE RamID IN (SELECT RamID FORM RamsOnDisk WHERE DiskID = {diskID}) AND\
-             RamCompany != (SELECT DiskCompany FROM Disks WHERE DiskID = {diskID})").format(
+            "SELECT RamID FROM Rams WHERE (RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID}) AND\
+             RamCompany != (SELECT DiskCompany FROM Disks WHERE DiskID = {diskID}))").format(
             diskID=sql.Literal(diskID))
-        # TODO: CHECK HOW TO RETURN THE LIST CORRECTLY
+        # TODO: CHECK HOW TO RETURN THE LIST CORRECTLY - fixed
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         if rows_effected == 0:
             return True
     except Exception as e:
-        return -1
+        print(e)
     finally:
         conn.close()
     return False
@@ -582,15 +593,15 @@ if __name__ == '__main__':
     disk2 = Disk(2, 'hp', 2, 3, 4)
     disk3 = Disk(3, 'apple', 3, 16, 3)
 
-    query1 = Query(1, 'hey', 9)
+    query1 = Query(1, 'hey', 1)
     query2 = Query(2, 'bye', 2)
-    query3 = Query(10, 'day', 6)
-    query4 = Query(6, 'a', 2)
-    query5 = Query(5, 'b', 3)
-    query6 = Query(3, 'd', 1)
+    query3 = Query(3, 'day', 3)
+    query4 = Query(4, 'a', 4)
+    query5 = Query(5, 'b', 5)
+    query6 = Query(6, 'd', 12)
 
-    ram1 = RAM(1, "dell", 1000)
-    ram2 = RAM(2, "lenovo", 2)
+    ram1 = RAM(1, "dell", 2)
+    ram2 = RAM(2, "lenovo", 1)
     ram3 = RAM(3, "msi", 10)
 
     print("adding disks 1,2,3 and queries 1,2,3 to DB should be OK")
@@ -609,8 +620,8 @@ if __name__ == '__main__':
     print("adding query 1 to disk 1 OK")
     print(addQueryToDisk(query1, disk1.getDiskID()))
 
-    # print("adding query 3 to disk 1 OK")
-    # print(addQueryToDisk(query3, disk1.getDiskID()))
+    print("adding query 3 to disk 1 OK")
+    print(addQueryToDisk(query3, disk1.getDiskID()))
 
     print("adding query 1 to disk 1 Already exists")
     print(addQueryToDisk(query1, disk1.getDiskID()))
@@ -624,17 +635,20 @@ if __name__ == '__main__':
     print("adding query 1 to disk 4 NOT_EXISTS")
     print(addQueryToDisk(query1, 4))
 
-    print("adding query 2 to disk 1 Not Enough Space ")
+    print("adding query 6 to disk 1 Not Enough Space ")
+    print(addQueryToDisk(query6, disk1.getDiskID()))
+
+    print("removing query 1 from disk 1 ")
+    print(removeQueryFromDisk(query1, disk1.getDiskID()))
+
+    print("adding query 2 to disk 1 OK ")
     print(addQueryToDisk(query2, disk1.getDiskID()))
 
-    # print("removing query 1 from disk 1 ")
-    # print(removeQueryFromDisk(query1, disk1.getDiskID()))
-    #
-    # print("adding query 2 to disk 1 OK ")
-    # print(addQueryToDisk(query2, disk1.getDiskID()))
-
     print("adding ram 1 to disk 1 OK")
-    print(addRAMToDisk(1,1))
+    print(addRAMToDisk(1, 1))
+
+    print("adding ram 2 to disk 1 OK")
+    print(addRAMToDisk(2, 1))
 
     print("adding ram 1 to disk 1 ALREADY EXISTS")
     print(addRAMToDisk(1, 1))
@@ -657,6 +671,20 @@ if __name__ == '__main__':
     print(getQueriesCanBeAddedToDisk(1))
     print(getQueriesCanBeAddedToDiskAndRAM(1))
 
+    # print("check isCompanyExclusive: true")
+    # print(isCompanyExclusive(1))
+    #
+    # print("Add ram 2 to disk 1 OK")
+    # print(addRAMToDisk(2, 1))
+    #
+    # print("check isCompanyExclusive: false")
+    # print(isCompanyExclusive(1))
+    #
+    # print("remove ram 2 from disk 1 OK")
+    # print(removeRAMFromDisk(2, 1))
+    #
+    # print("check isCompanyExclusive: true")
+    # print(isCompanyExclusive(1))
 
     # print("removing ram 1 from disk 1 OK")
     # print(removeRAMFromDisk(1, 1))
