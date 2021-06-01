@@ -584,19 +584,14 @@ def isCompanyExclusive(diskID: int) -> bool:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT DiskID FROM Disks WHERE\
-            DiskId = (SELECT DiskID FROM RamsOnDisks )").format(
+            "SELECT DISTINCT * FROM ((SELECT ramcompany FROM Rams WHERE\
+             (RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID}))) as rc FULL OUTER JOIN (SELECT DiskCompany FROM Disks WHERE DiskID = {diskID}) as dc ON rc.ramcompany = dc.diskcompany) as a").format(
             diskID=sql.Literal(diskID))
-        # query = sql.SQL(
-        #     "SELECT RamID FROM Rams WHERE (RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID}) AND\
-        #      RamCompany != (SELECT DiskCompany FROM Disks WHERE DiskID = {diskID}))").format(
-        #     diskID=sql.Literal(diskID))
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
-        if rows_effected == 0:
+        if rows_effected == 1:
             result = True
     except Exception as e:
-        print(e)  # TODO how to check if the disk with diskID exists
         result = False
     finally:
         conn.close()
@@ -628,9 +623,7 @@ def mostAvailableDisks() -> List[int]:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT D.DiskID\
-             FROM Disks D, Queries Q\
-             WHERE COALESCE(Q.QuerySize, 0) <= D.DiskFreeSpace GROUP BY DiskID ORDER BY D.DiskFreeSpace DESC , D.DiskSpeed DESC, D.DiskID ASC LIMIT 5")
+            "SELECT DiskID From Disks Order By () DESC, DiskSpeed DESC, DiskID ASC LIMIT 5")
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         result = [i[0] for i in resultSet.rows]
@@ -649,13 +642,15 @@ def getCloseQueries(queryID: int) -> List[int]:
         conn = Connector.DBConnector()
         query = sql.SQL("").format(
             queryID=sql.Literal(queryID))
-        # query = sql.SQL("SELECT QueryID FROM COALESCE((SELECT QueryId From (SELECT * FROM Queries WHERE QueryID != {queryID})  INNER JOIN \
-        #                     (SELECT QueryID FROM Queries WHERE DiskID IN\
-        #                     (SELECT DiskID FROM QueriesOnDisks WHERE QueryID = {queryID})\
-        #                     AND QueryID != {queryID})), SELECT QueryId From (SELECT * FROM Queries WHERE QueryID != {queryID}) )\
-        #                     GROUP BY QueryID HAVING COUNT(*) >= (SELECT (COUNT(*)+1)/2 FROM QueriesOnDisks WHERE QueryID = {queryID})\
-        #                  ORDER BY QueryID ASC LIMIT 10").format(
-        #     queryID=sql.Literal(queryID))
+        query = sql.SQL("SELECT QueryID FROM\
+                        (SELECT * FROM \
+                        (SELECT * FROM QueriesOnDisks WHERE \
+                         QueryID != {queryID} AND DiskID IN (SELECT DiskID FROM QueriesOnDisks WHERE QueryID = {queryID})) AS foo\
+                         FULL JOIN Queries USING(QueryID)) AS FullJoin\
+                         WHERE QueryID != {queryID}\
+                        GROUP BY QueryID HAVING COALESCE(COUNT(DiskID),0) >= (SELECT (COUNT(*)+1)/2 FROM QueriesOnDisks WHERE QueryID = {queryID})\
+                        ORDER BY QueryID ASC LIMIT 10").format(
+            queryID=sql.Literal(queryID))
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         result = [i[0] for i in resultSet.rows]
