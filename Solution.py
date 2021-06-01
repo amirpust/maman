@@ -52,6 +52,8 @@ def createTables():
                               RamSize INTEGER,\
                               PRIMARY KEY(RamID, DiskID),\
                               CHECK(RamSize >= 0));\
+                         CREATE VIEW QueriesCanBeAddedOnDisks AS \
+                         (SELECT Q.QueryID, D.DiskID, Q.QuerySize FROM Queries Q, Disks D WHERE QuerySize <= DiskFreeSpace);\
                     COMMIT;")
         conn.commit()
     except Exception as e:
@@ -90,6 +92,7 @@ def dropTables():
                          DROP TABLE IF EXISTS Rams CASCADE;\
                          DROP TABLE IF EXISTS QueriesOnDisks CASCADE;\
                          DROP TABLE IF EXISTS RamsOnDisks CASCADE;\
+                         DROP VIEW IF EXISTS QueriesCanBeAddedOnDisks;\
                       COMMIT;")
         conn.commit()
     except Exception as e:
@@ -490,13 +493,17 @@ def diskTotalRAM(diskID: int) -> int:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT COALESCE(SUM(RamSize), 0) FROM Rams WHERE RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID})").format(
+            "SELECT COALESCE(SUM(RamSize), 0) FROM RamsOnDisks WHERE DiskID = {diskID}").format(
             diskID=sql.Literal(diskID))
+        # query = sql.SQL(
+        #     "SELECT COALESCE(SUM(RamSize), 0) FROM Rams WHERE RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID})").format(
+        #     diskID=sql.Literal(diskID))
 
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         result = resultSet[0]['coalesce']
     except Exception as e:
+        print(e)
         result = -1
     finally:
         conn.close()
@@ -511,7 +518,8 @@ def getCostForPurpose(purpose: str) -> int:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT COALESCE(SUM(Cost), 0) FROM (SELECT * FROM Queries WHERE QueryPurpose={purpose}) AS derived INNER JOIN QueriesOnDisks ON derived.QueryID = QueriesOnDisks.QueryID").format(
+            "SELECT COALESCE(SUM(Cost), 0) FROM (SELECT * FROM Queries WHERE QueryPurpose={purpose}) AS derived INNER JOIN \
+            QueriesOnDisks ON derived.QueryID = QueriesOnDisks.QueryID").format(
             purpose=sql.Literal(purpose))
 
         rows_effected, resultSet = conn.execute(query)
@@ -532,7 +540,7 @@ def getQueriesCanBeAddedToDisk(diskID: int) -> List[int]:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT QueryID FROM Queries WHERE QuerySize <= (SELECT DiskFreeSpace FROM Disks WHERE DiskID = {diskID}) ORDER BY QueryID DESC LIMIT 5").format(
+            "SELECT QueryID FROM QueriesCanBeAddedOnDisks WHERE DiskID = {diskID} ORDER BY QueryID DESC LIMIT 5").format(
             diskID=sql.Literal(diskID))
 
         rows_effected, resultSet = conn.execute(query)
@@ -553,7 +561,7 @@ def getQueriesCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT QueryID FROM Queries WHERE (QuerySize <= (SELECT DiskFreeSpace FROM Disks WHERE DiskId = {diskID})) \
+            "SELECT QueryID FROM QueriesCanBeAddedOnDisks WHERE DiskId = {diskID} \
             AND (QuerySize <= (SELECT COALESCE(SUM(RamSize), 0) FROM RamsOnDisks WHERE DiskID = {diskID})) ORDER BY QueryID ASC LIMIT 5").format(
             diskID=sql.Literal(diskID))
 
@@ -561,6 +569,7 @@ def getQueriesCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
         conn.commit()
         res = [i[0] for i in resultSet.rows]
     except Exception as e:
+        print(e)
         res = []
 
     finally:
@@ -575,9 +584,13 @@ def isCompanyExclusive(diskID: int) -> bool:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT RamID FROM Rams WHERE (RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID}) AND\
-             RamCompany != (SELECT DiskCompany FROM Disks WHERE DiskID = {diskID} AND ROWNUM = 1))").format(
+            "SELECT DiskID FROM Disks WHERE\
+            DiskId = (SELECT DiskID FROM RamsOnDisks )").format(
             diskID=sql.Literal(diskID))
+        # query = sql.SQL(
+        #     "SELECT RamID FROM Rams WHERE (RamID IN (SELECT RamID FROM RamsOnDisks WHERE DiskID = {diskID}) AND\
+        #      RamCompany != (SELECT DiskCompany FROM Disks WHERE DiskID = {diskID}))").format(
+        #     diskID=sql.Literal(diskID))
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         if rows_effected == 0:
@@ -617,7 +630,7 @@ def mostAvailableDisks() -> List[int]:
         query = sql.SQL(
             "SELECT D.DiskID\
              FROM Disks D, Queries Q\
-             WHERE COALESCE(Q.QuerySize, 0) <= D.DiskFreeSpace GROUP BY DiskID ORDER BY COUNT(D.DiskID) DESC , D.DiskSpeed DESC, D.DiskID ASC LIMIT 5")
+             WHERE COALESCE(Q.QuerySize, 0) <= D.DiskFreeSpace GROUP BY DiskID ORDER BY D.DiskFreeSpace DESC , D.DiskSpeed DESC, D.DiskID ASC LIMIT 5")
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         result = [i[0] for i in resultSet.rows]
@@ -634,13 +647,15 @@ def getCloseQueries(queryID: int) -> List[int]:
     result = []
     try:
         conn = Connector.DBConnector()
-        query = sql.SQL("SELECT QueryID FROM Queries\
-                            WHERE DiskID IN\
-                            (SELECT DiskID FROM QueriesOnDisks WHERE QueryID = {queryID})\
-                            AND QueryID != {queryID}\
-                            GROUP BY QueryID HAVING COUNT(*) >= (SELECT (COUNT(*)+1)/2 FROM QueriesOnDisks WHERE QueryID = {queryID})\
-                         ORDER BY QueryID ASC LIMIT 10").format(
+        query = sql.SQL("").format(
             queryID=sql.Literal(queryID))
+        # query = sql.SQL("SELECT QueryID FROM COALESCE((SELECT QueryId From (SELECT * FROM Queries WHERE QueryID != {queryID})  INNER JOIN \
+        #                     (SELECT QueryID FROM Queries WHERE DiskID IN\
+        #                     (SELECT DiskID FROM QueriesOnDisks WHERE QueryID = {queryID})\
+        #                     AND QueryID != {queryID})), SELECT QueryId From (SELECT * FROM Queries WHERE QueryID != {queryID}) )\
+        #                     GROUP BY QueryID HAVING COUNT(*) >= (SELECT (COUNT(*)+1)/2 FROM QueriesOnDisks WHERE QueryID = {queryID})\
+        #                  ORDER BY QueryID ASC LIMIT 10").format(
+        #     queryID=sql.Literal(queryID))
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         result = [i[0] for i in resultSet.rows]
