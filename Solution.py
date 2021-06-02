@@ -623,7 +623,11 @@ def mostAvailableDisks() -> List[int]:
     try:
         conn = Connector.DBConnector()
         query = sql.SQL(
-            "SELECT DiskID From Disks Order By () DESC, DiskSpeed DESC, DiskID ASC LIMIT 5")
+            "select diskid from\
+                ((Select diskid, COUNT(QuerySize) filter (where querysize <= diskfreespace) as querycount\
+                    from (select * from disks cross join (select querySize from queries) as qwe) as asd GROUP By Diskid) as rrw\
+                FULL OUTER JOIN disks using(diskid)) as ewqe\
+                order by querycount desc, diskspeed desc, diskid asc LIMIT 5")
         rows_effected, resultSet = conn.execute(query)
         conn.commit()
         result = [i[0] for i in resultSet.rows]
